@@ -2,11 +2,14 @@ import numpy as np
 import pandas as pd
 import sklearn
 from sklearn import preprocessing
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 
 # noinspection SpellCheckingInspection
 def getUserData():
+
     user_info = pd.read_csv('steam-200k.csv')
     # Dropping rows with 'purchase' values
     user_info = user_info[user_info.play_or_purchase != 'purchase']
@@ -17,7 +20,7 @@ def getUserData():
     scaler = sklearn.preprocessing.MinMaxScaler(feature_range=(0, 1))
     user_info['hours_played'] = scaler.fit_transform(np.array(user_info['hours_played']).reshape(-1, 1))
 
-    print(user_info)
+    # print(user_info)
 
     return user_info
 
@@ -39,19 +42,15 @@ def getGameData():
     # Dropping positive and negative ratings
     game_info.drop(labels=['positive_ratings', 'negative_ratings'], axis='columns', inplace=True)
 
-    categories = list(game_info['categories'])
-    genres = list(game_info['genres'])
-    steamspy_tags = list(game_info['steamspy_tags'])
+    # Parsing tags columns
+    s1 = game_info['categories'].map(lambda x: x.split(';'))
+    s2 = game_info['genres'].map(lambda x: x.split(';'))
+    s3 = game_info['steamspy_tags'].map(lambda x: x.split(';'))
 
-    tags = []
+    # Creating new tags column
+    game_info['tags'] = s1.combine(s2.combine(s3, lambda x, y: list(set(x+y))), lambda x, y: list(set(x+y)))\
+        .map(lambda x: ', '.join(x))
 
-    # Joining categories, genres and steam tags into one tags column
-    for i in range(len(categories)):
-        tokens = list(set(categories[i].split(';') + genres[i].split(';') + steamspy_tags[i].split(';')))
-        tags.append(tokens)
-
-    # Creating the tags column
-    game_info['tags'] = tags
 
     # Dropping columns that were joined
     game_info.drop(labels=['categories', 'genres', 'steamspy_tags'], axis='columns', inplace=True)
@@ -62,16 +61,34 @@ def getGameData():
 
     return game_info
 
+def createTfIDFVectors(tags):
+    vectorizer = TfidfVectorizer()
+    return vectorizer.fit_transform(tags).toarray()
 
+
+def getTopNSimilar(games, game_title, n, vectors):
+    top = []
+    index = games[games.name == game_title].index[0]
+    for i in range(len(vectors)):
+        top.append((i, cosine_similarity(X=[vectors[index]], Y=[vectors[i]])[0][0]))
+
+
+
+    print(int(index))
+    return sorted(top, key=lambda x: x[1], reverse=True)
 
 
 users = getUserData()
 games = getGameData()
 
-game_titles = set(list(games['name'].unique()) + list(users['game_title'].unique()))
+vectors = createTfIDFVectors(games['tags'])
 
-# print(games.head(3))
+# print(vectors[35])
+# print(type(vectors[0]))
 
-# print(games.head(100).drop(labels='tags', axis=1))
 
+# sim = cosine_similarity(X=[vectors[2]], Y=[vectors[2]], dense_output=True)
 
+# print(sim[0][0])
+
+print(getTopNSimilar(games, 'The Ship: Murder Party', 5, vectors))
