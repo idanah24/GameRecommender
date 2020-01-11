@@ -8,31 +8,36 @@ from sklearn.cluster import KMeans
 class RecSys:
 
 
-    def __init__(self, type):
-        pass
+    def __init__(self, games, users):
+        self.games = games
+        self.users = users
+        self.tags_clusters = self.getTagsClusters(games)
+
+
+    def getTagsClusters(self, games):
+        vectors = self.createTfIDFVectors(games['tags'])
+        clusters = self.applyKmeans(vectors)
+
+        return clusters
+
+    def createTfIDFVectors(self, tags):
+        vectorizer = TfidfVectorizer()
+        vectors = vectorizer.fit_transform(tags)
+        return vectors.toarray()
 
 
 
-def createTfIDFVectors(games):
+    def applyKmeans(self, vectors):
+        kMeans = KMeans(n_clusters=10, max_iter=10)
 
-    vectorizer = TfidfVectorizer()
-    vectors = pd.DataFrame(vectorizer.fit_transform(games['tags']).toarray())
-    vectors['game_title'] = games['name']
-    return vectors
+        print(vectors.shape)
+        # Applying the K-Means algorithm
+        print("Applying the K-Means algorithm")
+        kMeans.fit(vectors)
 
+        print(kMeans)
 
+        result = pd.DataFrame(data=kMeans.labels_, columns=['cluster'])
 
-def applyKmeans(vectors):
-    kMeans = KMeans(n_clusters=10)
-    vecs = vectors.drop(labels='game_title', axis='columns')
-    vecs = np.array(vecs)
-
-    kMeans.fit(vecs)
-
-    result = pd.DataFrame(data=kMeans.labels_, columns=['cluster'])
-    result['game_title'] = vectors['game_title']
-
-    print(result[result.cluster == 1])
-
-    return None
+        return result
 

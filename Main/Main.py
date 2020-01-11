@@ -6,8 +6,10 @@ dt = Data()
 games = dt.getGameData()
 users = dt.getUserData()
 
-recommender = RecSys()
+recommender = RecSys(games, users)
 
 
-print(games)
-print(users)
+
+
+# print(games)
+# print(users)

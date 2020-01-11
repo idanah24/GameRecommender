@@ -5,14 +5,14 @@ import numpy as np
 
 class Data:
 
-
+    # This class handles data processing
 
     def __init__(self):
         pass
 
     # noinspection SpellCheckingInspection
     def getUserData(self):
-        user_info = pd.read_csv('steam-200k.csv')
+        user_info = pd.read_csv('C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\steam-200k.csv')
 
         # Dropping rows with 'purchase' values
         user_info = user_info[user_info.play_or_purchase != 'purchase']
@@ -28,12 +28,13 @@ class Data:
 
     # noinspection SpellCheckingInspection
     def getGameData(self):
-        game_info = pd.read_csv('steam.csv')
+        game_info = pd.read_csv('C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\steam.csv')
 
         #  Dropping unnecessary columns
         game_info.drop(
             labels=['release_date', 'english', 'developer', 'publisher',
-                    'required_age', 'achievements', 'owners', 'median_playtime',
+                    'required_age', 'achievements', 'owners', 'average_playtime',
+                    'median_playtime',
                     'appid', 'platforms'],
             axis='columns', inplace=True)
 
