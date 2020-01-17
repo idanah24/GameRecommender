@@ -1,33 +1,31 @@
 from Data.Data import Data
 from Recommender.Recommender import RecSys
-
+import random
 
 dt = Data()
 
+print("Processing data...")
 games = dt.getGameData()
 users = dt.getUserData()
+print("Done!")
 
-recommender = RecSys(games, users)
-
-# print(games['price'])
+rec = RecSys(games, users, top_n=10, models={'collab': 0.55, 'tags': 0.35, 'price': 0.1})
 
 
-# print(games)
-# print(users)
+user_ids = users['user_id'].unique()
+random.shuffle(user_ids)
+id = random.choice(user_ids)
 
-# existing_games = set()
-# titles_from_games = games['name'].tolist()
-# titles_from_users = users['game_title'].tolist()
-#
-# count = 0
-#
-# for title in titles_from_users:
-#     if title in titles_from_games:
-#         count += 1
-#         existing_games.add(title)
-#
-# print("There is information about {0} games out of {1} needed".format(count, len(titles_from_users)))
-# print(users)
-# print(existing_games)
-# print(len(existing_games))
+
+print("Recommending for: {0}".format(id))
+
+
+result = rec.recommend(id)
+
+
+print(result)
+print(users[users['user_id'] == id]['game_title'].tolist())
+
+
+
 
