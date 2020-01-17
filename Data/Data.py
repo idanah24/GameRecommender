@@ -3,6 +3,7 @@ import sklearn
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
+
 class Data:
 
     # This class handles data processing
@@ -61,4 +62,7 @@ class Data:
         game_info['ratings'] = scaler.fit_transform(np.array(game_info['ratings']).reshape(-1, 1))
 
         return game_info
+
+
+
 
