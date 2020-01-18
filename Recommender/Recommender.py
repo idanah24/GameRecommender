@@ -35,10 +35,10 @@ class RecSys:
         if user_games:
             # Getting recommendations by tags from a given random game
             random.shuffle(user_games)
-            rec_by_tags = self.getSimilarByTags(self.games, random.choice(user_games))
+            rec_by_tags = self.getSimilarByTags(random.choice(user_games))
             # Getting recommendations by price from a given random game
             random.shuffle(user_games)
-            rec_by_price = self.getSimilar(self.games, random.choice(user_games), 'price')
+            rec_by_price = self.getSimilar(random.choice(user_games), 'price')
             # Calculating scores
             rec_by_tags['score'] = self.models['tags'] * 100
             rec_by_tags['score'] = rec_by_tags['score'] / pd.Series([1] + list(rec_by_tags.index))
@@ -83,18 +83,18 @@ class RecSys:
     # This method calculates most similar games by tags column
     # Input: games data, and a single game title
     # Output: top n most similar games to the given one
-    def getSimilarByTags(self, games, game_title):
+    def getSimilarByTags(self, game_title):
         # Getting tf idf vectors
-        vectors = self.createTfIDFVectors(games['tags'])
+        vectors = self.createTfIDFVectors(self.games['tags'])
         # Getting given game title's index
-        index = int(games.index[games['name'] == game_title][0])
+        index = int(self.games.index[self.games['name'] == game_title][0])
         # Calculating cosine similarity and adding index before sorting
         similarities = list(map(lambda x: cosine_similarity([x], [vectors[index]])[0][0], vectors))
         similarities = list(zip(range(len(similarities)), similarities))
         # Sorting and slicing out top n
         top = sorted(similarities, key=lambda x: x[1], reverse=True)[1:self.top_n+1]
         # Creating list of top n game titles
-        result = pd.DataFrame(list(map(lambda x: games.iloc[x[0]], top)))
+        result = pd.DataFrame(list(map(lambda x: self.games.iloc[x[0]], top)))
         # Making uniform data
         result = result['name'].reset_index(drop=True).rename('game_title')
         result.index = range(1, self.top_n + 1)
@@ -103,17 +103,17 @@ class RecSys:
     # This method calculates most similar games by a given numeric column
     # Input: games data, a single game_title
     # Output: a frame with most similar games
-    def getSimilar(self, games, game_title, column):
+    def getSimilar(self, game_title, column):
         # Getting given game value in given column
-        value = games[games['name'] == game_title][column].tolist()[0]
+        value = self.games[self.games['name'] == game_title][column].tolist()[0]
         # Calculating euclidean distance between given game and all the rest
-        similarities = games[column].map(lambda x: abs(value - x)).tolist()
+        similarities = self.games[column].map(lambda x: abs(value - x)).tolist()
         # Adding index
         similarities = list(zip(range(len(similarities)), similarities))
         # Sorting and slicing top n games
         top = sorted(similarities, key=lambda x: x[1], reverse=True)[1:self.top_n + 1]
         # Creating frame with top n game titles
-        result = pd.DataFrame(list(map(lambda x: games.iloc[x[0]], top)))
+        result = pd.DataFrame(list(map(lambda x: self.games.iloc[x[0]], top)))
         # Making uniform data
         result = result['name'].rename('game_title')
         result.index = range(1, self.top_n + 1)
