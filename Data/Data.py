@@ -8,28 +8,40 @@ class Data:
 
     # This class handles data processing
 
-    def __init__(self):
-        pass
+    def __init__(self, load=False):
+        # Paths to save/load data
+        self.RAW_USER_DATA = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\steam-200k.csv'
+        self.RAW_GAME_DATA = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\steam.csv'
+
+        self.READY_USER_DATA = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\users.csv'
+        self.READY_GAME_DATA = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\games.csv'
+
+        # Loading existing ready data
+        if load:
+            self.users, self.games = self.load()
+        # Processing raw data
+        else:
+            self.users = self.getUserData()
+            self.games = self.getGameData()
+            self.process()
+
 
     # noinspection SpellCheckingInspection
     def getUserData(self):
-        user_info = pd.read_csv('C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\steam-200k.csv')
+        user_info = pd.read_csv(self.RAW_USER_DATA)
+        user_info.columns = ['user_id', 'game_title', 'play_or_purchase', 'hours_played', '0']
 
         # Dropping rows with 'purchase' values
         user_info = user_info[user_info.play_or_purchase != 'purchase']
         # Dropping unnecessary columns
         user_info.drop(labels=['0', 'play_or_purchase'], axis='columns', inplace=True)
 
-        # Normalizing 'hours played' column
-        scaler = sklearn.preprocessing.MinMaxScaler(feature_range=(0, 1))
-        user_info['hours_played'] = scaler.fit_transform(np.array(user_info['hours_played']).reshape(-1, 1))
-
-
         return user_info
 
     # noinspection SpellCheckingInspection
     def getGameData(self):
-        game_info = pd.read_csv('C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\steam.csv')
+        game_info = pd.read_csv(self.RAW_GAME_DATA)
+
 
         #  Dropping unnecessary columns
         game_info.drop(
@@ -62,6 +74,35 @@ class Data:
         game_info['ratings'] = scaler.fit_transform(np.array(game_info['ratings']).reshape(-1, 1))
 
         return game_info
+
+
+    def process(self):
+
+        # Removing rows from users for games with no information
+        bool_series = self.users['game_title'].isin(self.games['name'].unique())
+        self.users.drop(bool_series[bool_series == False].index, axis='rows', inplace=True)
+
+        # Removing users who only played one game
+        users_to_remove = self.users.groupby('user_id').size()
+        users_to_remove = users_to_remove[users_to_remove == 1]
+        bool_series = self.users['user_id'].isin(users_to_remove.index)
+        self.users.drop(bool_series[bool_series == True].index, axis='rows', inplace=True)
+
+    def save(self):
+        self.games.to_csv(self.READY_GAME_DATA)
+        self.users.to_csv(self.READY_USER_DATA)
+
+    def load(self):
+        games = pd.read_csv(self.READY_GAME_DATA)
+        games.drop(labels='Unnamed: 0', axis='columns', inplace=True)
+        users = pd.read_csv(self.READY_USER_DATA)
+        users.drop(labels='Unnamed: 0', axis='columns', inplace=True)
+        return users, games
+
+
+
+
+
 
 
 
