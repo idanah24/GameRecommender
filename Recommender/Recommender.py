@@ -1,9 +1,7 @@
-import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics.pairwise import euclidean_distances
-import random
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -53,109 +51,94 @@ class RecSys:
     def recommend(self, user_id):
         rec_by_tags, rec_by_price = None, None
         # Getting user games
-        user_games = self.users[self.users['user_id'] == user_id]
-
+        user_games = self.users[self.users['user_id'] == user_id].sort_values(by='hours_played',
+                                                                              ascending=False)['game_title'].tolist()
         # Performing collaborative filtering
-        rec_by_users = self.recommendByUsers(user_id)
+        rec_by_users = self.recommendByUsers(user_id, user_games)
 
-        # # If the games that the user played exist in database
-        # if user_games:
-        #     # Getting recommendations by tags from a given random game
-        #     random.shuffle(user_games)
-        #     rec_by_tags = self.getSimilarByTags(random.choice(user_games))
-        #     # Getting recommendations by price from a given random game
-        #     random.shuffle(user_games)
-        #     rec_by_price = self.getSimilar(random.choice(user_games), 'price')
-        #     # Calculating scores
-        #     rec_by_tags['score'] = self.models['tags'] * 100
-        #     rec_by_tags['score'] = rec_by_tags['score'] / pd.Series([1] + list(rec_by_tags.index))
-        #     rec_by_price['score'] = self.models['price'] * 100
-        #     rec_by_price['score'] = rec_by_price['score'] / pd.Series([1] + list(rec_by_price.index))
-        #
-        # # Calculating scores
-        # rec_by_users['score'] = self.models['collab'] * 100
-        #
-        # # Setting score according to place in table
-        # rec_by_users['score'] = rec_by_users['score'] / pd.Series([1] + list(rec_by_users.index))
-        #
-        # rec = rec_by_users
-        # # Combining all recommendations to one table
-        # if user_games:
-        #     rec = rec.append(rec_by_tags.append(rec_by_price, ignore_index=True), ignore_index=True)
-        #
-        # # Filtering out games that are already played
-        # played = self.users[self.users['user_id'] == user_id]['game_title'].tolist()
-        # rec = rec[~rec['game_title'].isin(played)]
-        #
-        # # Summing scores of games that are at more than one table
-        # rec = rec.groupby(['game_title']).sum()
-        #
-        # # Sorting to get top results
-        # rec = rec.sort_values('score', ascending=False)
-        #
-        # # If there are not enough recommendations, appending most popular games
-        # if rec.shape[0] < self.top_n:
-        #     rec.append(self.top_rated, ignore_index=True)
-        #
-        # return list(rec.head(self.top_n).index)
+        # Calculating score
+        rec_by_users['score'] = rec_by_users['score'].map(lambda x: (self.models['collab'] * 100) / x)
+
+        # If the games that the user played exist in database
+        if user_games:
+            # TODO: Consider picking users games randomly
+
+            # Selecting the longest played game by user
+            longest = user_games.pop(0)
+
+            # Getting recommendations by tags
+            rec_by_tags = self.getSimilar(game_title=longest, user_games=user_games, model='tags')
+
+            # Adding longest game to the end of list
+            user_games.append(longest)
+
+            longest = user_games.pop(0)
+            # Getting recommendations by price
+            rec_by_price = self.getSimilar(game_title=longest, user_games=user_games, model='price')
+            user_games.append(longest)
+
+
+            # Calculating scores
+            rec_by_tags['score'] = rec_by_tags['score'].map(lambda x: (self.models['tags'] * 100) / x)
+            rec_by_price['score'] = rec_by_price['score'].map(lambda x: (self.models['price'] * 100) / x)
+
+        # Joining all recommendations
+        rec = rec_by_users.append(rec_by_tags.append(rec_by_price))
+
+        # Giving duplicates higher ranking and selecting top n
+        rec = list(rec.groupby(['name']).sum(). \
+            sort_values(by='score', ascending=False).head(self.top_n).index)
+
+        # Adding top rated games if there isn't enough recommendations
+        if len(rec) < self.top_n:
+            rec = rec + self.top_rated[0: self.top_n - len(rec)]
+
+        return rec
 
     # This method creates tf-idf vectors
     # Input: a series of tags lists
     # Output: a matrix of tf-idf vectors
     def createTfIDFVectors(self, tags):
+
         vectorizer = TfidfVectorizer()
         vectors = vectorizer.fit_transform(tags)
         return vectors.toarray()
 
-    # This method calculates most similar games by tags column
-    # Input: games data, and a single game title
+    # This method calculates most similar games by a given model column
+    # Input: game title to look for similar, user's already played games and the model
     # Output: top n most similar games to the given one
-    def getSimilarByTags(self, game_title):
-        # Getting tf idf vectors
-        vectors = self.createTfIDFVectors(self.games['tags'])
-        # Getting given game title's index
-        index = int(self.games.index[self.games['name'] == game_title][0])
-        # Calculating cosine similarity and adding index before sorting
-        similarities = list(map(lambda x: cosine_similarity([x], [vectors[index]])[0][0], vectors))
-        similarities = list(zip(range(len(similarities)), similarities))
-        # Sorting and slicing out top n
-        top = sorted(similarities, key=lambda x: x[1], reverse=True)[1:self.top_n+1]
-        # Creating list of top n game titles
-        result = pd.DataFrame(list(map(lambda x: self.games.iloc[x[0]], top)))
-        # Making uniform data
-        result = result['name'].reset_index(drop=True).rename('game_title')
-        result.index = range(1, self.top_n + 1)
-        return pd.DataFrame(result)
+    def getSimilar(self, game_title, user_games, model):
+        # Getting game index
+        game_index = self.games[self.games['name'] == game_title].index[0]
 
-    # This method calculates most similar games by a given numeric column
-    # Input: games data, a single game_title
-    # Output: a frame with most similar games
-    def getSimilar(self, game_title, column):
-        # Getting given game value in given column
-        value = self.games[self.games['name'] == game_title][column].tolist()[0]
-        # Calculating euclidean distance between given game and all the rest
-        similarities = self.games[column].map(lambda x: abs(value - x)).tolist()
-        # Adding index
-        similarities = list(zip(range(len(similarities)), similarities))
-        # Sorting and slicing top n games
-        top = sorted(similarities, key=lambda x: x[1], reverse=True)[1:self.top_n + 1]
-        # Creating frame with top n game titles
-        result = pd.DataFrame(list(map(lambda x: self.games.iloc[x[0]], top)))
-        # Making uniform data
-        result = result['name'].rename('game_title')
-        result.index = range(1, self.top_n + 1)
-        return pd.DataFrame(result)
+        if model == 'tags':
+            similar = self.tag_sims[str(game_index)]
+
+        elif model == 'price':
+            similar = self.price_sims[str(game_index)]
+
+        # Sorting games similar to given game, dropping the game itself
+        similar = similar.sort_values(ascending=False).drop(index=game_index)
+
+        # Filtering out games user has already played and taking top n
+        existing = self.games['name'].isin(user_games)
+        similar = similar.drop(index=existing[existing == True].index).head(self.top_n)
+
+        # Getting games names and preparing result
+        result = self.games.iloc[similar.index].reset_index(drop=True)
+        result['score'] = pd.Series(range(1, self.top_n + 1))
+        result = result[['name', 'score']]
+
+        return result
+
 
     # This method generates the most highly rated games in the dataset
     # Input: games data
     # Output: top n most rated games
     def getTopRated(self, games):
         # Sorting out top n most popular games
-        top_rated = pd.DataFrame(games.sort_values('ratings', ascending=False).head(self.top_n)['name'])
-        # Making the data uniform
-        top_rated.index = range(1, self.top_n + 1)
-        top_rated.rename(columns={'name': 'game_title'}, inplace=True)
-        top_rated['score'] = range(1, self.top_n + 1)
+        top_rated = pd.DataFrame(games.sort_values('ratings', ascending=False).
+                                 head(self.top_n)['name'])['name'].tolist()
         return top_rated
 
 
@@ -163,20 +146,31 @@ class RecSys:
     # This method performs collaborative filtering
     # Input: user id number
     # Output: top n games played by most similar users
-    def recommendByUsers(self, user_id):
+    def recommendByUsers(self, user_id, user_games):
+
         # Calculating n most similar users
         similar_users = self.getSimilarUsers(user_id)
 
-        # Getting all games played by similar users
-        users_games = self.users['user_id'].isin(similar_users.index)
-        users_games = users_games[users_games == True].index
-        users_games = self.users.iloc[users_games]
-        # Adding weights - similarity with user
-        users_games['weights'] = users_games.apply(lambda row: similar_users.loc[row['user_id']], axis='columns')
+        # Getting all games played by similar users that the user didn't play
+        others_games = self.users['user_id'].isin(similar_users.index) & ~self.users['game_title'].isin(user_games)
+        others_games = others_games[others_games == True].index
+        others_games = self.users.iloc[others_games]
 
-        users_games = users_games[['game_title', 'weights']].groupby(['game_title']).sum()
-        users_games = users_games.sort_values(by='weights', ascending=False)
-        return users_games.head(self.top_n)
+        # Adding score - ranking games played by very similar users higher
+        others_games['score'] = others_games.apply(lambda row: similar_users.loc[row['user_id']], axis='columns')
+
+        # Sorting and selecting top n
+        others_games = others_games.groupby(['game_title']).sum().\
+            sort_values(by='score', ascending=False)
+        others_games['name'] = others_games.index
+        result = others_games[['name', 'score']].reset_index(drop=True)
+        result = result.head(self.top_n)
+
+        # Adding new score => position in table
+        result['score'] = pd.Series(range(1, self.top_n + 1))
+
+        return result
+
 
     # This method uses user-vectors to calculate top n similar users
     # Input: user id and a number n
@@ -221,8 +215,6 @@ class RecSys:
         user_sims.to_csv(self.USER_SIMS_PATH)
         print("Done!")
 
-
-
     def getSimilarities(self, vectors, method):
         if method == 'cosine':
             sims = cosine_similarity(vectors)
@@ -234,28 +226,3 @@ class RecSys:
         sims = pd.DataFrame(sims)
         return sims
 
-
-
-
-
-
-
-
-
-    # # This method searches for games in game data from a user played games
-    # # Input: user id number
-    # # Output: a list of game titles which exists in game data
-    # def getReleventGames(self, user_id):
-    #     # Getting user games and sorting by hours played
-    #     user_games = self.users[self.users['user_id'] == user_id]
-    #     user_games = user_games.sort_values('hours_played', ascending=False)
-    #     # Creating lists from games in game data and from user's played games
-    #     us_titles = user_games['game_title'].tolist()
-    #     gm_titles = self.games['name'].tolist()
-    #     # Calculating intersection of the lists
-    #     # TODO: get rid of for loop
-    #     played = []
-    #     for title in us_titles:
-    #         if title in gm_titles:
-    #             played.append(title)
-    #     return played

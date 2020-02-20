@@ -7,13 +7,12 @@ import pandas as pd
 
 
 def loadSystem():
+    print("Loading user and game information...")
     dt = Data()
-    print("Processing data...")
-    games = dt.getGameData()
-    users = dt.getUserData()
     print("Done!")
-    rec = RecSys(games, users, top_n=10, models={'collab': 0.55, 'tags': 0.35, 'price': 0.1})
-    return games, users, rec
+    print("Setting up recommender system...")
+    rec = RecSys(dt.games, dt.users, top_n=10, models={'collab': 0.55, 'tags': 0.35, 'price': 0.1})
+    return dt.games, dt.users, rec
 
 
 
@@ -34,14 +33,14 @@ def main():
     gui.mainWindow(choice_list=user_list, menu_button_action=Recommend)
 
 
-# main()
+main()
 
 
-dt = Data(load=True)
-rec = RecSys(dt.games, dt.users, top_n=10,
-             models={'collab': 0.55, 'tags': 0.35, 'price': 0.1},
-             build=False)
-rec.recommend(86540)
+# dt = Data(load=True)
+# rec = RecSys(dt.games, dt.users, top_n=10,
+#              models={'collab': 0.55, 'tags': 0.35, 'price': 0.1},
+#              build=False)
+# print(dt.users['user_id'].unique())
 
 
 

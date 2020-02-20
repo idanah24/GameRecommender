@@ -8,7 +8,7 @@ class Data:
 
     # This class handles data processing
 
-    def __init__(self, load=False):
+    def __init__(self, load=True):
         # Paths to save/load data
         self.RAW_USER_DATA = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\steam-200k.csv'
         self.RAW_GAME_DATA = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\steam.csv'
