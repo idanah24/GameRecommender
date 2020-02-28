@@ -10,8 +10,11 @@ class GUI:
     def __init__(self):
         pass
 
-
+    # This method sets the main application window
+    # Input: list of users, and a function to perform upon pressing the button
     def mainWindow(self, choice_list, menu_button_action):
+
+        # Main window properties
         window = Tk()
         window.title("Game Recommender")
         window.geometry("300x100")
@@ -31,7 +34,6 @@ class GUI:
         # Recommend button
         menu_button = Button(bottom, width=12, text="Recommend", command=buttonAction)
         menu_button.pack()
-
 
         bottom.pack()
 

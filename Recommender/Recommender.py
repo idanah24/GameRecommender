@@ -8,7 +8,8 @@ warnings.filterwarnings("ignore")
 class RecSys:
 
     # This class is the actual recommendation engine
-
+    # Class constructor takes in games & users data, top n recommendations to make, model weights dictionary,
+    # and a boolean flag to indicate weather to build or load the system
     def __init__(self, games, users, top_n, models, build=False):
         self.TAG_SIMS_PATH = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Recommender\\tag_sims.csv'
         self.PRICE_SIMS_PATH = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Recommender\\price_sims.csv'
@@ -22,6 +23,7 @@ class RecSys:
         self.top_rated = self.getTopRated(games)
         self.games = self.getCommonGames(games)
 
+        # Building and saving new models
         if build:
             self.buildModels()
 
@@ -36,29 +38,18 @@ class RecSys:
         self.user_sims.index = self.user_sims['user_id']
         self.user_sims.drop(labels=['user_id'], axis='columns', inplace=True)
         print("Done!")
-
-        # print(self.tag_sims)
-        # print(self.price_sims)
-        # print(self.user_sims)
-
         print("System Ready!")
-
-
 
     # This is the main method, recommending video games
     # Input: user id number
     # Output: top n (defined in class) recommendations
     def recommend(self, user_id):
+
         rec_by_tags, rec_by_price = None, None
         # Getting user games
         user_games = self.users[self.users['user_id'] == user_id].sort_values(by='hours_played',
                                                                               ascending=False)['game_title'].tolist()
-        # Performing collaborative filtering
-        rec_by_users = self.recommendByUsers(user_id, user_games)
-
-        # Calculating score
-        rec_by_users['score'] = rec_by_users['score'].map(lambda x: (self.models['collab'] * 100) / x)
-
+        rec = pd.DataFrame(columns=['name', 'score'])
         # If the games that the user played exist in database
         if user_games:
             # TODO: Consider picking users games randomly
@@ -83,7 +74,19 @@ class RecSys:
             rec_by_price['score'] = rec_by_price['score'].map(lambda x: (self.models['price'] * 100) / x)
 
         # Joining all recommendations
-        rec = rec_by_users.append(rec_by_tags.append(rec_by_price))
+        if rec_by_price is not None:
+            rec = rec.append(rec_by_price)
+        if rec_by_tags is not None:
+            rec = rec.append(rec_by_tags)
+
+        # Performing collaborative filtering
+        rec_by_users = self.recommendByUsers(user_id, user_games)
+
+        if rec_by_users is not None:
+
+            # Calculating score
+            rec_by_users['score'] = rec_by_users['score'].map(lambda x: (self.models['collab'] * 100) / x)
+            rec.append(rec_by_users)
 
         # Giving duplicates higher ranking and selecting top n
         rec = list(rec.groupby(['name']).sum(). \
@@ -99,7 +102,6 @@ class RecSys:
     # Input: a series of tags lists
     # Output: a matrix of tf-idf vectors
     def createTfIDFVectors(self, tags):
-
         vectorizer = TfidfVectorizer()
         vectors = vectorizer.fit_transform(tags)
         return vectors.toarray()
@@ -131,7 +133,6 @@ class RecSys:
 
         return result
 
-
     # This method generates the most highly rated games in the dataset
     # Input: games data
     # Output: top n most rated games
@@ -141,8 +142,6 @@ class RecSys:
                                  head(self.top_n)['name'])['name'].tolist()
         return top_rated
 
-
-
     # This method performs collaborative filtering
     # Input: user id number
     # Output: top n games played by most similar users
@@ -151,13 +150,18 @@ class RecSys:
         # Calculating n most similar users
         similar_users = self.getSimilarUsers(user_id)
 
-        # Getting all games played by similar users that the user didn't play
-        others_games = self.users['user_id'].isin(similar_users.index) & ~self.users['game_title'].isin(user_games)
-        others_games = others_games[others_games == True].index
-        others_games = self.users.iloc[others_games]
+        # Getting other users games that the user did not play
+        not_played = ~self.users['game_title'].isin(user_games)
+
+        others_games = self.users[not_played]
+
+        most_similar = others_games['user_id'].isin(similar_users.index)
+
+        others_games = others_games[most_similar]
 
         # Adding score - ranking games played by very similar users higher
-        others_games['score'] = others_games.apply(lambda row: similar_users.loc[row['user_id']], axis='columns')
+        others_games['score'] = others_games.apply\
+            (lambda row: similar_users.loc[row['user_id']], axis='columns')
 
         # Sorting and selecting top n
         others_games = others_games.groupby(['game_title']).sum().\
@@ -168,25 +172,28 @@ class RecSys:
 
         # Adding new score => position in table
         result['score'] = pd.Series(range(1, self.top_n + 1))
-
+        # print(result)
         return result
 
-
     # This method uses user-vectors to calculate top n similar users
-    # Input: user id and a number n
+    # Input: user id
     # Output: returns top n users(list of id's) similar to given id
     def getSimilarUsers(self, user_id):
         top = self.user_sims[str(user_id)].sort_values(ascending=False)
         top.drop(labels=user_id, inplace=True)
-        return top.head(self.top_n)
+        # TODO: Check if possible to set back to top n
+        return top.head(100)
 
+    # This method calculates the intersection between games in users database and games database
+    # Input: games dataframe
+    # Output: games dataframe with only games that are common to user's
     def getCommonGames(self, games):
         relevant_games = self.games['name'].isin(self.users['game_title'].unique())
         relevant_games = self.games.iloc[relevant_games[relevant_games == True].index].reset_index(drop=True)
         return relevant_games
 
+    # This method builds models from processed data and saves
     def buildModels(self):
-
         print("Building models...")
         # Creating similarities by tags
         vectors = self.createTfIDFVectors(self.games['tags'])
@@ -215,6 +222,9 @@ class RecSys:
         user_sims.to_csv(self.USER_SIMS_PATH)
         print("Done!")
 
+    # This method calculate vector similarity for a given method
+    # Input: vectors matrix and a method to calculate by
+    # Output: similarity matrix as dataframe
     def getSimilarities(self, vectors, method):
         if method == 'cosine':
             sims = cosine_similarity(vectors)
@@ -225,4 +235,3 @@ class RecSys:
 
         sims = pd.DataFrame(sims)
         return sims
-

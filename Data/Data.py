@@ -7,12 +7,13 @@ import numpy as np
 class Data:
 
     # This class handles data processing
-
+    # class constructor takes in boolean flag to indicate weather to load data or process
     def __init__(self, load=True):
         # Paths to save/load data
+        # Input files
         self.RAW_USER_DATA = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\steam-200k.csv'
         self.RAW_GAME_DATA = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\steam.csv'
-
+        # Output files
         self.READY_USER_DATA = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\users.csv'
         self.READY_GAME_DATA = 'C:\\Users\\Idan\\PycharmProjects\\GameRecommender\\Data\\games.csv'
 
@@ -27,6 +28,7 @@ class Data:
 
 
     # noinspection SpellCheckingInspection
+    # This method processes user data
     def getUserData(self):
         user_info = pd.read_csv(self.RAW_USER_DATA)
         user_info.columns = ['user_id', 'game_title', 'play_or_purchase', 'hours_played', '0']
@@ -39,10 +41,9 @@ class Data:
         return user_info
 
     # noinspection SpellCheckingInspection
+    # This method processes game data
     def getGameData(self):
         game_info = pd.read_csv(self.RAW_GAME_DATA)
-
-
         #  Dropping unnecessary columns
         game_info.drop(
             labels=['release_date', 'english', 'developer', 'publisher',
@@ -75,7 +76,7 @@ class Data:
 
         return game_info
 
-
+    # This method processes both user and game data
     def process(self):
 
         # Removing rows from users for games with no information
@@ -88,22 +89,15 @@ class Data:
         bool_series = self.users['user_id'].isin(users_to_remove.index)
         self.users.drop(bool_series[bool_series == True].index, axis='rows', inplace=True)
 
+    # This method saves processed data
     def save(self):
         self.games.to_csv(self.READY_GAME_DATA)
         self.users.to_csv(self.READY_USER_DATA)
 
+    # This method loads processed data
     def load(self):
         games = pd.read_csv(self.READY_GAME_DATA)
         games.drop(labels='Unnamed: 0', axis='columns', inplace=True)
         users = pd.read_csv(self.READY_USER_DATA)
         users.drop(labels='Unnamed: 0', axis='columns', inplace=True)
         return users, games
-
-
-
-
-
-
-
-
-

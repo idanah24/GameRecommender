@@ -1,46 +1,46 @@
-import random
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 class Evaluator:
 
+    # This class handles evaluation of recommender system model
+    # class constructor takes in a recommender system object
     def __init__(self, system):
         self.system = system
-        self.games = system.games
-        self.users = system.users
-        self.user_list = system.users['user_id'].unique()
-        self.hits = 0
-        self.failed = 0
 
-
+    # This is the main method, calculating hit rate with Leave-One-Out-Cross-Validation
     def evaluate(self):
 
-        count_users = 1
-        for user in self.user_list:
-            # Getting all the games the user played
-            user_games = self.users[self.users['user_id'] == user]['game_title'].tolist()
+        print("Evaluating system...")
+        hits, misses, checked = 0, 0, 1
+        for index, row in self.system.users.iterrows():
+            print("Attempt {0}/{1}".format(checked, self.system.users.shape[0]))
 
-            # Randomly picking a game to drop
-            random.shuffle(user_games)
-            dropped = random.choice(user_games)
+            # Leaving current row out
+            expected = row
+            self.system.users.drop(index=index, inplace=True)
 
-            # Dropping a game
-            dropped_index = self.users.loc[self.users['game_title'] == dropped].loc[self.users['user_id'] == user].index[0]
-            self.users.drop(dropped_index, inplace=True)
+            # Making recommendations
+            recommendations = self.system.recommend(expected['user_id'])
 
-            print("Recommending for: {0} out of {1}".format(count_users, len(self.user_list)))
-            count_users += 1
 
-            # Creating recommendations for current user
-            recommendations = self.system.recommend(user)
+            # Checking for hit or miss
+            if expected['game_title'] in recommendations:
+                hits += 1
+                print("Hit!")
 
-            # Checking if dropped game was recommended or not
-            if dropped in recommendations:
-                self.hits += 1
             else:
-                self.failed += 1
-
-            print("Hits: {0} | Miss: {1}".format(self.hits, self.failed))
-
+                misses += 1
+                print("Miss!")
 
 
+            # Putting interaction back in data
+            self.system.users = self.system.users.append(expected)
+            self.system.users.sort_index(inplace=True)
+
+            print("Hits: {0} | Misses: {1}".format(hits, misses))
+            checked += 1
+
+
+
+        print("Evaluation complete!")
