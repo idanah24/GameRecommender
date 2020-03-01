@@ -3,6 +3,7 @@ from Recommender.Recommender import RecSys
 from Evaluation.Evaluation import Evaluator
 from Interface.Interface import GUI
 
+
 # This method sets up recommender system and data
 def loadSystem():
     print("Loading user and game information...")
@@ -28,14 +29,17 @@ def main():
 
 
 # Running application
-main()
+# main()
 
 
 # Running evaluation
-# dt = Data()
-# rec = RecSys(dt.games, dt.users, top_n=10,
-#              models={'collab': 0.55, 'tags': 0.35, 'price': 0.1})
-#
-# eval = Evaluator(rec)
-# eval.evaluate()
+dt = Data()
+rec = RecSys(dt.games, dt.users, top_n=10,
+             models={'collab': 0.4, 'tags': 0.5, 'price': 0.1})
+
+eval = Evaluator(rec)
+eval.evaluate()
+eval.report()
+
+
 
